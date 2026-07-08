@@ -1,0 +1,12 @@
+streamlit
+pandas
+numpy
+openpyxl
+xlsxwriter
+firebase-admin
+streamlit-cookies-controller
+secure-smtplib
+gspread
+reportlab
+streamlit-cookies-manager
+plotly

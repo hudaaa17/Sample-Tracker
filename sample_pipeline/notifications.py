@@ -1,0 +1,238 @@
+"""
+In-app notifications page for sample pipeline alerts.
+Shows alerts for stuck pipeline entries based on thresholds.
+"""
+
+import streamlit as st
+import pandas as pd
+from datetime import datetime
+from samples_new.sample_constants import SAMPLE_CSS
+from sample_pipeline.sample_pipeline_firestore import load_pipeline_entries, get_pipeline_alerts, STAGES
+
+
+NOTIF_CSS = """
+<style>
+.notif-card {
+    background: #FFFFFF;
+    border: 1.5px solid #DDD5C5;
+    border-radius: 12px;
+    padding: 1rem 1.4rem;
+    margin-bottom: 0.8rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    font-family: 'Outfit', sans-serif;
+    transition: box-shadow 0.15s ease;
+}
+.notif-card:hover {
+    box-shadow: 0 4px 16px rgba(27,42,74,0.08);
+}
+.notif-card.high {
+    border-left: 5px solid #B71C1C;
+    background: #FFFAFA;
+}
+.notif-card.medium {
+    border-left: 5px solid #E65100;
+    background: #FFFDF7;
+}
+.notif-icon {
+    font-size: 1.6rem;
+    min-width: 36px;
+    text-align: center;
+    padding-top: 2px;
+}
+.notif-body { flex: 1; }
+.notif-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #1B2A4A;
+    margin-bottom: 3px;
+}
+.notif-detail {
+    font-size: 0.82rem;
+    color: #6B7A99;
+    margin-bottom: 4px;
+}
+.notif-days-high {
+    display: inline-block;
+    background: #FFEBEE;
+    border: 1px solid #EF9A9A;
+    color: #B71C1C;
+    border-radius: 20px;
+    padding: 2px 10px;
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+.notif-days-medium {
+    display: inline-block;
+    background: #FFF3E0;
+    border: 1px solid #FFAB40;
+    color: #E65100;
+    border-radius: 20px;
+    padding: 2px 10px;
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+.notif-empty {
+    background: #E8F5E9;
+    border: 1.5px solid #A5D6A7;
+    border-radius: 12px;
+    padding: 2rem;
+    text-align: center;
+    font-family: 'Outfit', sans-serif;
+    color: #2E7D32;
+}
+.threshold-card {
+    background: #FAF7F2;
+    border: 1.5px solid #DDD5C5;
+    border-radius: 10px;
+    padding: 1rem 1.4rem;
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.85rem;
+    color: #1B2A4A;
+}
+.threshold-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 0;
+    border-bottom: 1px solid #E8E0D0;
+}
+.threshold-row:last-child { border-bottom: none; }
+.threshold-key { color: #6B7A99; }
+.threshold-val { font-weight: 600; color: #C9A84C; }
+
+.notif-section-divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 1.6rem 0 0.7rem 0;
+}
+.notif-section-divider:first-of-type { margin-top: 0.2rem; }
+.notif-section-label {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #6B7A99;
+    white-space: nowrap;
+}
+.notif-section-line {
+    flex: 1;
+    height: 1px;
+    background: #DDD5C5;
+}
+</style>
+"""
+
+
+def show_notifications():
+    st.markdown(SAMPLE_CSS, unsafe_allow_html=True)
+    st.markdown(NOTIF_CSS, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div class="sd-hero">
+        <div class="sd-eyebrow">Sample Pipeline</div>
+        <div class="sd-title">🔔 <em>Notifications</em></div>
+        <div class="sd-sub">Pipeline entries that need your attention — check these regularly.</div>
+        <div class="sd-divider"></div>
+    </div>""", unsafe_allow_html=True)
+
+    with st.spinner("Checking pipeline for alerts..."):
+        df     = load_pipeline_entries()
+        alerts = get_pipeline_alerts(df) if not df.empty else []
+
+    # ── Summary bar ──
+    high_count   = len([a for a in alerts if a["severity"] == "high"])
+    medium_count = len([a for a in alerts if a["severity"] == "medium"])
+
+    col1, col2  = st.columns(2)
+    with col1:
+        st.markdown(f"""
+        <div class="kpi-card red">
+            <div class="kpi-label">High Priority</div>
+            <div class="kpi-value red">{high_count}</div>
+            <div class="kpi-sub">needs immediate action</div>
+        </div>""", unsafe_allow_html=True)
+    with col2:
+        st.markdown(f"""
+        <div class="kpi-card amber">
+            <div class="kpi-label">Medium Priority</div>
+            <div class="kpi-value amber">{medium_count}</div>
+            <div class="kpi-sub">follow up soon</div>
+        </div>""", unsafe_allow_html=True)
+
+    st.markdown("<div style='margin-top:1.5rem;'></div>", unsafe_allow_html=True)
+
+    # ── Filter by type ──
+    alert_types = {
+        "All":                  "All Alerts",
+        "supplier_no_response": "📤 Supplier Not Responding",
+        "not_received":         "🚚 Stock Not Received",
+        "not_handed_over":      "📦 Not Handed Over",
+    }
+    sel_type = st.selectbox(
+        "Filter by alert type",
+        list(alert_types.keys()),
+        format_func=lambda x: alert_types[x],
+        key="notif_type",
+        label_visibility="collapsed"
+    )
+
+    filtered_alerts = alerts if sel_type == "All" else \
+                      [a for a in alerts if a["type"] == sel_type]
+
+    # Group cards by type so each category renders as one contiguous block,
+    # instead of interleaving (alerts may arrive sorted by days/severity,
+    # not by type). Within each group, original relative order is preserved.
+    if sel_type == "All":
+        seen_order = []
+        for a in filtered_alerts:
+            if a["type"] not in seen_order:
+                seen_order.append(a["type"])
+        filtered_alerts = sorted(
+            filtered_alerts,
+            key=lambda a: seen_order.index(a["type"])
+        )
+
+    st.caption(f"{len(filtered_alerts)} alerts")
+    st.markdown("<div style='margin-top:0.5rem;'></div>", unsafe_allow_html=True)
+
+    # ── Alert cards ──
+    if not filtered_alerts:
+        st.markdown("""
+        <div class="notif-empty">
+            ✅ <b>All clear!</b><br>
+            <span style="font-size:0.85rem;color:#2E7D32;">
+            No pipeline alerts at this time.
+            </span>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        last_type = None
+        for alert in filtered_alerts:
+            if alert["type"] != last_type:
+                st.markdown(f"""
+                <div class="notif-section-divider">
+                    <span class="notif-section-label">{alert_types.get(alert["type"], alert["type"])}</span>
+                    <div class="notif-section-line"></div>
+                </div>
+                """, unsafe_allow_html=True)
+                last_type = alert["type"]
+
+            severity  = alert["severity"]
+            days_cls  = f"notif-days-{severity}"
+
+            st.markdown(f"""
+            <div class="notif-card {severity}">
+                <div class="notif-icon">{alert["icon"]}</div>
+                <div class="notif-body">
+                    <div class="notif-title">{alert["title"]}</div>
+                    <div class="notif-detail">{alert["detail"]}</div>
+                    <span class="{days_cls}">
+                        {alert["days"]} days overdue
+                    </span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+    st.divider()
