@@ -17,7 +17,11 @@ def show_login_page(cookies):
     .stApp {
         background: linear-gradient(135deg, #1B2A4A 0%, #243556 50%, #1B2A4A 100%) !important;
     }
-    #MainMenu, footer, header { visibility: hidden; }
+    #MainMenu, footer { visibility: hidden; }
+    header, [data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecoration"] {
+        display: none !important;
+        height: 0 !important;
+    }
     section[data-testid="stSidebar"] { display: none !important; }
 
     .block-container {
@@ -28,9 +32,6 @@ def show_login_page(cookies):
         border-radius: 12px !important;
         border-top: 5px solid #C9A84C !important;
         box-shadow: 0 24px 64px rgba(0,0,0,0.35) !important;
-        position: absolute !important;
-        left: 50% !important;
-        transform: translateX(-50%) !important;
     }
     .stTabs [data-baseweb="tab-list"] {
         background: #F5F1EA !important;
