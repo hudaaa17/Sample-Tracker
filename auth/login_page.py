@@ -115,12 +115,12 @@ def show_login_page(cookies):
         </div>
         <div style="font-family:'IM Fell English',serif; font-size:26px;
                     color:#1B2A4A; text-align:center; margin-bottom:4px;">
-            Customer Visit Report
+            Sample Tracker Dashboard
         </div>
         <div style="font-family:'Libre Baskerville',serif; font-size:11px;
                     color:#5A6A85; text-align:center; letter-spacing:1.8px;
                     text-transform:uppercase; margin-bottom:6px;">
-            Sales Intelligence Dashboard
+            Track Sample Status
         </div>
         <div style="width:48px; height:3px; background:#C9A84C;
                     margin: 0 auto 28px auto; border-radius:2px;"></div>
