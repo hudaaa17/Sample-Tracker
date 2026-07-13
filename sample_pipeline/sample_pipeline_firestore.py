@@ -201,7 +201,10 @@ def get_pipeline_alerts(df: pd.DataFrame) -> list:
                         "detail":   f"ISSUE: {supplier} contacted {days} days ago  ",
                         "days":     days,
                         "doc_id":   doc_id,
-                        "loc_details": f"Branch: {branch}, Area: {area}"
+                        "loc_details": f"Branch: {branch}, Area: {area}",
+                        "branch":branch,
+                        "area": area,
+
     
                     })
 
@@ -219,7 +222,9 @@ def get_pipeline_alerts(df: pd.DataFrame) -> list:
                         "detail":   f"ISSUE: {product} · Shipped {days} days ago ",
                         "days":     days,
                         "doc_id":   doc_id,
-                        "loc_details": f"Branch: {branch}, Area: {area}"                        
+                        "loc_details": f"Branch: {branch}, Area: {area}",
+                        "branch":branch,
+                        "area": area,                        
 
                     })
 
@@ -237,7 +242,9 @@ def get_pipeline_alerts(df: pd.DataFrame) -> list:
                         "detail":   f"ISSUE: {product} · Received {days} days ago  ",
                         "days":     days,
                         "doc_id":   doc_id,
-                        "loc_details": f"Branch: {branch}, Area: {area}"
+                        "loc_details": f"Branch: {branch}, Area: {area}",
+                        "branch":branch,
+                        "area": area,
                                                                 })
 
         elif in_stock == "Yes":
@@ -254,6 +261,8 @@ def get_pipeline_alerts(df: pd.DataFrame) -> list:
                         "days":     days,
                         "doc_id":   doc_id,
                         "loc_details": f"Branch: {branch}, Area: {area}",
+                        "branch":branch,
+                        "area": area,
                     })
 
 
