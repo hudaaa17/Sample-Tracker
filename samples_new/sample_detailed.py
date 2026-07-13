@@ -22,7 +22,7 @@ from reportlab.platypus import (
 from samples_new.sample_constants import (
     SAMPLE_CSS, COL_BRANCH, COL_AREA, COL_CUSTOMER,
     COL_SAMPLE_PROD, COL_HO_DATE, COL_HO_BY,
-    COL_CONTACT, COL_QTY, COL_FEEDBACK
+    COL_CONTACT, COL_QTY, COL_UNITS, COL_FEEDBACK
 )
 from samples_new.sample_firestore import (
     load_feedback_for_sample, add_feedback,
@@ -370,6 +370,7 @@ def show_detailed_info(fdf: pd.DataFrame):
         ho_by    = str(row.get(COL_HO_BY, "—"))
         contact  = str(row.get(COL_CONTACT, "—"))
         qty      = str(row.get(COL_QTY, "—"))
+        units    = str(row.get(COL_UNITS, "—"))
         days_ago = int((pd.Timestamp.now() - ho_date).days) if pd.notna(ho_date) else 0
         branch = str(row.get(COL_BRANCH, "-"))
         area = str(row.get(COL_AREA, "-"))
@@ -459,7 +460,7 @@ def show_detailed_info(fdf: pd.DataFrame):
                     <span>📅 Handed over: <b>{ho_disp}</b> ({days_ago}d ago)</span>
                     <span>🤝 By: <b>{esc(ho_by)}</b></span>
                     <span>👤 Contact: <b>{esc(contact)}</b></span>
-                    <span>🧪 Qty: <b>{esc(qty)}</b></span>
+                    <span>🧪 Qty: <b>{esc(qty)}</b><b>{esc(units)}</b></span>
                     <span> 🏢 Branch: <b>{esc(branch)}</b></span>
                     <span> 📍Area: <b>{esc(area)}</b></span>
                 </div>
