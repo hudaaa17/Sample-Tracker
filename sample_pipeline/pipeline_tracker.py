@@ -539,7 +539,8 @@ def show_pipeline_tracker():
         branch   = str(row.get("branch", "—"))
         area     = str(row.get("area", "—"))
         supplier = str(row.get("supplier", "—"))
-        qty      = str(row.get("qty", "—"))
+        qty      = str(row.get("standard_qty", "—"))
+        units    = str(row.get("standard_unit", "—"))
         in_stock = str(row.get("in_stock", "No"))
     
         enq_date = fmt_date(row.get("enquiry_date"))
@@ -560,7 +561,7 @@ def show_pipeline_tracker():
                 <div class="pipeline-meta">
                     <span>📍 {branch} — {area}</span>
                     <span>🏭 Supplier: {supplier}</span>
-                    <span>🧪 Qty: {qty}</span>
+                    <span>🧪 Qty: {qty}{units}</span>
                     <span>📅 Enquiry: {enq_date}</span>
                     <span>📦 In Stock: <b>{in_stock}</b></span>
                 </div>
