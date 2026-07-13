@@ -184,6 +184,8 @@ def get_pipeline_alerts(df: pd.DataFrame) -> list:
         product  = row.get("sample_product", "—")
         in_stock = row.get("in_stock", "")
         doc_id   = row.get("_doc_id", "")
+        branch   = row.get("branch", "—")
+        area     = row.get("area", "—")
 
         # Alert 1 — Supplier not responding (5 days)
         if stage == "supplier_enquiry":
@@ -195,10 +197,12 @@ def get_pipeline_alerts(df: pd.DataFrame) -> list:
                         "type":     "supplier_no_response",
                         "icon":     "📤",
                         "severity": "high" if days >14 else "medium",
-                        "title":    f"Supplier not responding  — {customer} || {product}",
-                        "detail":   f"{supplier} contacted {days} days ago",
+                        "title":    f"SUPPLIER NOT RESPONDING  — {customer} || {product}",
+                        "detail":   f"ISSUE: {supplier} contacted {days} days ago  ",
                         "days":     days,
                         "doc_id":   doc_id,
+                        "loc_details": f"Branch: {branch}, Area: {area}"
+    
                     })
 
         # Alert 2 — Shipped but not received (7 days)
@@ -211,10 +215,12 @@ def get_pipeline_alerts(df: pd.DataFrame) -> list:
                         "type":     "not_received",
                         "icon":     "🚚",
                         "severity": "high" if days > 14 else "medium",
-                        "title":    f"Stock not received — {customer} || {product} ",
-                        "detail":   f"{product} · Shipped {days} days ago",
+                        "title":    f"STOCK NOT RECEIVED — {customer} || {product} ",
+                        "detail":   f"ISSUE: {product} · Shipped {days} days ago ",
                         "days":     days,
                         "doc_id":   doc_id,
+                        "loc_details": f"Branch: {branch}, Area: {area}"                        
+
                     })
 
         # Alert 3 — Received but not handed over (3 days)
@@ -227,11 +233,12 @@ def get_pipeline_alerts(df: pd.DataFrame) -> list:
                         "type":     "not_handed_over",
                         "icon":     "📦",
                         "severity": "high" if days > 14 else "medium",
-                        "title":    f"Stock received, not handed over — {customer} || {product}",
-                        "detail":   f"{product} · Received {days} days ago",
+                        "title":    f"STOCK RECEIVED, NOT HANDED OVER — {customer} || {product}",
+                        "detail":   f"ISSUE: {product} · Received {days} days ago  ",
                         "days":     days,
                         "doc_id":   doc_id,
-                    })
+                        "loc_details": f"Branch: {branch}, Area: {area}"
+                                                                })
 
         elif in_stock == "Yes":
             enq_date = row.get("enquiry_date")
@@ -242,10 +249,11 @@ def get_pipeline_alerts(df: pd.DataFrame) -> list:
                         "type":     "not_handed_over",
                         "icon":     "📦",
                         "severity": "high" if days > 14 else "medium",
-                        "title":    f"Not handed over — {customer} || {product}",
-                        "detail":   f"Product in Stock - Not Handed Over ",
+                        "title":    f"NOT HANDED OVER — {customer} || {product}",
+                        "detail":   f"ISSUE: Product in Stock - Not Handed Over ",
                         "days":     days,
                         "doc_id":   doc_id,
+                        "loc_details": f"Branch: {branch}, Area: {area}",
                     })
 
 
