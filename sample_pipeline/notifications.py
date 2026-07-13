@@ -164,23 +164,68 @@ def show_notifications():
 
     st.markdown("<div style='margin-top:1.5rem;'></div>", unsafe_allow_html=True)
 
-    # ── Filter by type ──
+    # ── Filters: type, branch, area ──
     alert_types = {
         "All":                  "All Alerts",
         "supplier_no_response": "📤 Supplier Not Responding",
         "not_received":         "🚚 Stock Not Received",
         "not_handed_over":      "📦 Not Handed Over",
     }
-    sel_type = st.selectbox(
-        "Filter by alert type",
-        list(alert_types.keys()),
-        format_func=lambda x: alert_types[x],
-        key="notif_type",
-        label_visibility="collapsed"
-    )
 
-    filtered_alerts = alerts if sel_type == "All" else \
-                      [a for a in alerts if a["type"] == sel_type]
+    # Build branch/area option lists from the underlying pipeline data,
+    # so the dropdowns always reflect what's actually in Firestore.
+    branch_options = ["All Branches"]
+    if not df.empty and "branch" in df.columns:
+        branch_options += sorted(df["branch"].dropna().unique().tolist())
+
+    col_type, col_branch, col_area = st.columns(3)
+
+    with col_type:
+        sel_type = st.selectbox(
+            "Filter by alert type",
+            list(alert_types.keys()),
+            format_func=lambda x: alert_types[x],
+            key="notif_type",
+            label_visibility="collapsed"
+        )
+
+    with col_branch:
+        sel_branch = st.selectbox(
+            "Filter by branch",
+            branch_options,
+            key="notif_branch",
+            label_visibility="collapsed"
+        )
+
+    # Area options narrow down based on the selected branch
+    area_options = ["All Areas"]
+    if not df.empty and "area" in df.columns:
+        area_df = df if sel_branch == "All Branches" else df[df["branch"] == sel_branch]
+        area_options += sorted(area_df["area"].dropna().unique().tolist())
+
+    # If branch changed since last run, the previously selected area may no
+    # longer be valid — reset it before the widget renders to avoid a
+    # StreamlitAPIException.
+    prev_branch = st.session_state.get("_prev_notif_branch")
+    if prev_branch != sel_branch:
+        st.session_state["_prev_notif_branch"] = sel_branch
+        st.session_state["notif_area"] = "All Areas"
+
+    with col_area:
+        sel_area = st.selectbox(
+            "Filter by area",
+            area_options,
+            key="notif_area",
+            label_visibility="collapsed"
+        )
+
+    filtered_alerts = alerts
+    if sel_type != "All":
+        filtered_alerts = [a for a in filtered_alerts if a["type"] == sel_type]
+    if sel_branch != "All Branches":
+        filtered_alerts = [a for a in filtered_alerts if a.get("branch") == sel_branch]
+    if sel_area != "All Areas":
+        filtered_alerts = [a for a in filtered_alerts if a.get("area") == sel_area]
 
     # Group cards by type so each category renders as one contiguous block,
     # instead of interleaving (alerts may arrive sorted by days/severity,
@@ -228,6 +273,7 @@ def show_notifications():
                 <div class="notif-icon">{alert["icon"]}</div>
                 <div class="notif-body">
                     <div class="notif-title">{alert["title"]}</div>
+                    <div class="notif-detail">{alert["loc_details"]}</div>
                     <div class="notif-detail">{alert["detail"]}</div>
                     <span class="{days_cls}">
                         {alert["days"]} days overdue
