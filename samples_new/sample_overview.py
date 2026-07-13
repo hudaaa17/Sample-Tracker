@@ -331,11 +331,12 @@ def show_overview(fdf=None, sel_prod="All"):
                             else:
 
                                 # ── Supplier KPIs ──
-                                sup_total    = len(sup_df)
-                                sup_positive = len(sup_df[sup_df["Feedback Status"] == "Positive"])
-                                sup_negative = len(sup_df[sup_df["Feedback Status"] == "Negative"])
-                                sup_pending  = len(sup_df[sup_df["Feedback Status"] == "Pending"])
-                                sup_products = sup_df[COL_SAMPLE_PROD].nunique()
+                                sup_total     = len(sup_df)
+                                sup_positive  = len(sup_df[sup_df["Feedback Status"] == "Positive"])
+                                sup_negative  = len(sup_df[sup_df["Feedback Status"] == "Negative"])
+                                sup_pending   = len(sup_df[sup_df["Feedback Status"] == "Pending"])
+                                sup_purchased = len(sup_df[sup_df[COL_PURCHASED] == "Yes"])
+                                sup_products  = sup_df[COL_SAMPLE_PROD].nunique()
 
                                 st.markdown(
                                     f"<div style='font-family:Cormorant Garamond,serif;font-size:1.6rem;"
@@ -344,12 +345,13 @@ def show_overview(fdf=None, sel_prod="All"):
                                     unsafe_allow_html=True
                                 )
 
-                                k1,k2,k3,k4,k5 = st.columns(5)
+                                k1,k2,k3,k4,k5,k6 = st.columns(6)
                                 with k1: kpi("Total Samples", sup_total)
                                 with k2: kpi("Products",      sup_products, "unique products")
                                 with k3: kpi("Positive",  sup_positive, variant="green")
                                 with k4: kpi("Negative",  sup_negative, variant="red")
                                 with k5: kpi("Pending",   sup_pending,  variant="amber")
+                                with k6: kpi("Purchased", sup_purchased, variant="green")
 
                                 st.markdown("<div style='margin-top:1.5rem;'></div>", unsafe_allow_html=True)
 
@@ -394,13 +396,14 @@ def show_overview(fdf=None, sel_prod="All"):
                                         Positive   =("Feedback Status", lambda x: (x=="Positive").sum()),
                                         Negative   =("Feedback Status", lambda x: (x=="Negative").sum()),
                                         Pending    =("Feedback Status", lambda x: (x=="Pending").sum()),
+                                        Purchased  =(COL_PURCHASED, lambda x: (x=="Yes").sum()),
                                     )
                                     .reset_index()
                                     .sort_values("Total", ascending=False)
                                     .rename(columns={COL_SAMPLE_PROD: "Product"})
                                 )
                                 summary["Conversion %"] = (
-                                    summary["Positive"] / summary["Total"] * 100
+                                    summary["Purchased"] / summary["Total"] * 100
                                 ).round(0).astype(int).astype(str) + "%"
 
                                 st.dataframe(summary, width='stretch', hide_index=True)
@@ -443,11 +446,12 @@ def show_overview(fdf=None, sel_prod="All"):
                             st.warning(f"No samples found for: {sel_customer}")
                         else:
                             # ── Customer KPIs ──
-                            cust_total    = len(cust_df)
-                            cust_positive = len(cust_df[cust_df["Feedback Status"] == "Positive"])
-                            cust_negative = len(cust_df[cust_df["Feedback Status"] == "Negative"])
-                            cust_pending  = len(cust_df[cust_df["Feedback Status"] == "Pending"])
-                            cust_products = cust_df[COL_SAMPLE_PROD].nunique()
+                            cust_total     = len(cust_df)
+                            cust_positive  = len(cust_df[cust_df["Feedback Status"] == "Positive"])
+                            cust_negative  = len(cust_df[cust_df["Feedback Status"] == "Negative"])
+                            cust_pending   = len(cust_df[cust_df["Feedback Status"] == "Pending"])
+                            cust_purchased = len(cust_df[cust_df[COL_PURCHASED] == "Yes"])
+                            cust_products  = cust_df[COL_SAMPLE_PROD].nunique()
 
                             st.markdown(
                                 f"<div style='font-family:Cormorant Garamond,serif;"
@@ -456,12 +460,13 @@ def show_overview(fdf=None, sel_prod="All"):
                                 unsafe_allow_html=True
                             )
                             
-                            k1,k2,k3,k4,k5 = st.columns(5)
+                            k1,k2,k3,k4,k5,k6 = st.columns(6)
                             with k1: kpi("Total Samples", cust_total)
                             with k2: kpi("Products",      cust_products, "unique products")
                             with k3: kpi("Positive",  cust_positive, variant="green")
                             with k4: kpi("Negative",  cust_negative, variant="red")
                             with k5: kpi("Pending",   cust_pending,  variant="amber")
+                            with k6: kpi("Purchased", cust_purchased, variant="green")
 
                             st.markdown("<div style='margin-top:1.5rem;'></div>",
                                         unsafe_allow_html=True)
@@ -508,13 +513,14 @@ def show_overview(fdf=None, sel_prod="All"):
                                     Positive  =("Feedback Status", lambda x: (x=="Positive").sum()),
                                     Negative  =("Feedback Status", lambda x: (x=="Negative").sum()),
                                     Pending   =("Feedback Status", lambda x: (x=="Pending").sum()),
+                                    Purchased =(COL_PURCHASED, lambda x: (x=="Yes").sum()),
                                 )
                                 .reset_index()
                                 .sort_values("Total", ascending=False)
                                 .rename(columns={COL_SAMPLE_PROD: "Product"})
                             )
                             summary["Conversion %"] = (
-                                summary["Positive"] / summary["Total"] * 100
+                                summary["Purchased"] / summary["Total"] * 100
                             ).round(0).astype(int).astype(str) + "%"
 
                             st.dataframe(summary, width='stretch', hide_index=True)
