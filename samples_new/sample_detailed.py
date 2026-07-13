@@ -659,7 +659,7 @@ def show_detailed_info(fdf: pd.DataFrame):
 
     # ── PDF Download ──
 
-    if st.button("📄 Generate & Download PDF", type="primary",
+    if st.button("📄 Generate PDF", type="primary",
                 width='content', key="di_pdf_btn"):
         
         # ← Build PDF data HERE, only on click
