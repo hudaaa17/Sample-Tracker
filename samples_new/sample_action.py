@@ -566,7 +566,7 @@ def _render_positive_purchase_status(responded_df, COL_PUR):
     # ── PDF generation (two-step: Generate → Download) ──
     col_gen, col_dl = st.columns(2)
     with col_gen:
-        if st.button("📄 Generate PDF", key="ps_gen_pdf_pos", width='stretch'):
+        if st.button("📄 Generate PDF", key="ps_gen_pdf_pos", width='content'):
             grouped_data = _build_grouped_data(base_df)
             st.session_state["ps_pdf_bytes_pos"] = generate_sample_pdf(grouped_data, filters_desc)
             st.rerun()
