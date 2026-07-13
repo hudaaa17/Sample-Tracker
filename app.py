@@ -156,7 +156,31 @@ else:
                 </div>
             """, unsafe_allow_html=True)
 
-        st.markdown(f"👤 `{st.session_state['email']}`")
+        email = st.session_state['email']
+        st.markdown(
+            f"""
+            <div style="
+                background: rgba(255,255,255,0.08);
+                border: 1px solid rgba(201,168,76,0.4);
+                border-radius: 8px;
+                padding: 10px 14px;
+                margin-bottom: 8px;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            ">
+                <span style="font-size: 1.1rem;">👤</span>
+                <span style="
+                    color: #E8C97A;
+                    font-family: 'Libre Baskerville', serif;
+                    font-size: 13px;
+                    font-weight: 700;
+                    word-break: break-all;
+                ">{email}</span>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
         st.divider()
     
         if st.button("⏻️ Logout", key="logout_btn", width='stretch'):
