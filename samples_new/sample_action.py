@@ -16,12 +16,51 @@ from samples_new.sample_firestore import (
     load_all_latest_feedback, classify_feedback,
     get_urgency, build_sample_key
 )
+from samples_new.sample_detailed import generate_sample_pdf
 
 
 def esc(val) -> str:
     if pd.isna(val) or val is None:
         return "—"
     return html.escape(str(val))
+
+
+def _build_grouped_data(df: pd.DataFrame) -> dict:
+    """
+    Reshape a purchase-status dataframe into the {customer: [samples...]}
+    structure expected by generate_sample_pdf(). Each sample carries its
+    latest feedback as a single-entry history (that's all we track here —
+    full feedback history lives in Firestore's per-sample subcollection,
+    not in this enriched dataframe).
+    """
+    grouped: dict = {}
+    for _, row in df.iterrows():
+        customer = str(row.get(COL_CUSTOMER, "—")).strip() or "—"
+        ho_date  = row[COL_HO_DATE].strftime("%d %b %Y") if pd.notna(row.get(COL_HO_DATE)) else "—"
+        ho_by    = str(row.get(COL_HO_BY, "—")).strip() or "—"
+        contact  = str(row.get(COL_CONTACT, "—")).strip() or "—"
+        qty      = str(row.get("Sample Quantity", "—")).strip() or "—"
+        latest   = str(row.get("Latest Feedback", "")).strip()
+
+        feedbacks = []
+        if latest:
+            feedbacks.append({
+                "label": "Latest Feedback",
+                "date":  ho_date,
+                "by":    ho_by,
+                "text":  latest,
+            })
+
+        sample = {
+            "product":   str(row.get(COL_SAMPLE_PROD, "—")).strip() or "—",
+            "ho_date":   ho_date,
+            "ho_by":     ho_by,
+            "contact":   contact,
+            "qty":       qty,
+            "feedbacks": feedbacks,
+        }
+        grouped.setdefault(customer, []).append(sample)
+    return grouped
 
 
 def _enrich(df: pd.DataFrame, history: dict) -> pd.DataFrame:
@@ -285,11 +324,40 @@ def _show_needs_attention(fdf):
 
 def _show_purchase_status(fdf):
     """
+    Purchase analysis split by feedback type:
+      - Positive feedback: full breakdown into Yes / Not Yet / No / NA
+      - Negative feedback: simplified breakdown — Didn't Purchase / No Data only,
+        since a negative response is never followed by a "Yes"/"Not Yet" purchase.
+    """
+    responded_df = fdf[fdf["Urgency"] == "Responded"].copy()
+
+    if responded_df.empty:
+        st.info("No responded samples yet.")
+        return
+
+    COL_PUR = "Purchased?"
+
+    fb_view = st.radio(
+        "Feedback type",
+        ["✅ Positive Feedback", "❌ Negative Feedback"],
+        key="ps_fb_view",
+        horizontal=True,
+        label_visibility="collapsed"
+    )
+    st.markdown("<div style='margin-bottom:0.8rem;'></div>", unsafe_allow_html=True)
+
+    if fb_view.startswith("✅"):
+        _render_positive_purchase_status(responded_df, COL_PUR)
+    else:
+        _render_negative_purchase_status(responded_df, COL_PUR)
+
+
+def _render_positive_purchase_status(responded_df, COL_PUR):
+    """
     Purchase analysis for Positive-feedback samples only,
     grouped by purchase outcome: Yes / Not Yet / No+NA.
     Filter buttons at top, grouped sections below.
     """
-    responded_df = fdf[fdf["Urgency"] == "Responded"].copy()
     positive_df  = responded_df[responded_df["Feedback Status"] == "Positive"].copy()
 
     if positive_df.empty:
@@ -297,7 +365,6 @@ def _show_purchase_status(fdf):
         return
 
     # NOTE: "Purchased?" column (with question mark) from Sheet1 / Firestore
-    COL_PUR = "Purchased?"   # ← this is what _enrich() stores it as after pulling
     # from Firestore history (key "purchased") or sheet col "Purchased?"
 
     total_n   = len(positive_df)
@@ -390,8 +457,10 @@ def _show_purchase_status(fdf):
 
     if active_pur:
         label = {"Yes": "Purchased", "Not Yet": "Not Yet", "No": "Didn't Purchase", "__NA__": "No Data"}.get(active_pur, "")
+        filters_desc = f"Positive Feedback · {label}"
         st.caption(f"{len(base_df)} samples · filtered by **{label}**")
     else:
+        filters_desc = "Positive Feedback — All"
         st.caption(f"{total_n} positive feedback samples")
 
     st.markdown("<div style='margin-bottom:0.5rem;'></div>", unsafe_allow_html=True)
@@ -494,6 +563,216 @@ def _show_purchase_status(fdf):
         key="ps_download"
     )
 
+    # ── PDF generation (two-step: Generate → Download) ──
+    col_gen, col_dl = st.columns(2)
+    with col_gen:
+        if st.button("📄 Generate PDF", key="ps_gen_pdf_pos", width='stretch'):
+            grouped_data = _build_grouped_data(base_df)
+            st.session_state["ps_pdf_bytes_pos"] = generate_sample_pdf(grouped_data, filters_desc)
+            st.rerun()
+    with col_dl:
+        if st.session_state.get("ps_pdf_bytes_pos"):
+            st.download_button(
+                "📥 Download PDF",
+                data=st.session_state["ps_pdf_bytes_pos"],
+                file_name=f"PurchaseAnalysis_{datetime.now().strftime('%d%b%Y')}.pdf",
+                mime="application/pdf",
+                key="ps_download_pdf_pos"
+            )
+
+
+def _render_negative_purchase_status(responded_df, COL_PUR):
+    """
+    Purchase analysis for Negative-feedback samples.
+    Purchase outcome here is only ever "No" or missing/unset — a customer
+    who gave negative feedback isn't expected to have purchased, so we skip
+    the Yes / Not Yet buckets entirely and just show Didn't Purchase / No Data.
+    """
+    negative_df = responded_df[responded_df["Feedback Status"] == "Negative"].copy()
+
+    if negative_df.empty:
+        st.info("No negatively-responded samples yet.")
+        return
+
+    total_n = len(negative_df)
+    no_n    = (negative_df[COL_PUR] == "No").sum()
+    na_n    = (~negative_df[COL_PUR].isin(["No"])).sum()
+
+    # ── Stats bar ──
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown(f"""<div class="kpi-card">
+            <div class="kpi-label">Negative Feedback</div>
+            <div class="kpi-value">{total_n}</div>
+        </div>""", unsafe_allow_html=True)
+    with c2:
+        st.markdown(f"""<div class="kpi-card red">
+            <div class="kpi-label">Didn't Purchase</div>
+            <div class="kpi-value red">{no_n}</div>
+        </div>""", unsafe_allow_html=True)
+    with c3:
+        st.markdown(f"""<div class="kpi-card">
+            <div class="kpi-label">No Data</div>
+            <div class="kpi-value">{na_n}</div>
+        </div>""", unsafe_allow_html=True)
+
+    st.markdown("<div style='margin:1.5rem 0 0.5rem 0;'></div>", unsafe_allow_html=True)
+
+    # ── Filter buttons ──
+    active_pur = st.session_state.get("ps_pur_filter_neg", None)
+    st.markdown(
+        "<div style='font-family:Outfit,sans-serif;font-size:0.78rem;"
+        "font-weight:600;color:#6B7A99;margin-bottom:8px;'>Filter by Purchase Outcome:</div>",
+        unsafe_allow_html=True
+    )
+
+    b1, b2, b3 = st.columns(3)
+    with b1:
+        if st.button(f"❌ Didn't Purchase ({no_n})", key="ps_btn_no_neg", width='stretch'):
+            st.session_state["ps_pur_filter_neg"] = None if active_pur == "No" else "No"
+            st.rerun()
+    with b2:
+        if st.button(f"❔ No Data ({na_n})", key="ps_btn_na_neg", width='stretch'):
+            st.session_state["ps_pur_filter_neg"] = None if active_pur == "__NA__" else "__NA__"
+            st.rerun()
+    with b3:
+        if active_pur:
+            if st.button("✕ Clear Filter", key="ps_btn_clear_neg", width='stretch'):
+                st.session_state.pop("ps_pur_filter_neg", None)
+                st.rerun()
+
+    st.markdown("<div style='margin-bottom:1.2rem;'></div>", unsafe_allow_html=True)
+
+    # ── Apply filter ──
+    if active_pur == "No":
+        base_df = negative_df[negative_df[COL_PUR] == "No"]
+    elif active_pur == "__NA__":
+        base_df = negative_df[~negative_df[COL_PUR].isin(["No"])]
+    else:
+        base_df = negative_df
+
+    if active_pur:
+        label = {"No": "Didn't Purchase", "__NA__": "No Data"}.get(active_pur, "")
+        filters_desc = f"Negative Feedback · {label}"
+        st.caption(f"{len(base_df)} samples · filtered by **{label}**")
+    else:
+        filters_desc = "Negative Feedback — All"
+        st.caption(f"{total_n} negative feedback samples")
+
+    st.markdown("<div style='margin-bottom:0.5rem;'></div>", unsafe_allow_html=True)
+
+    # ── Groups ──
+    GROUPS = [
+        ("no_neg", "No",     "❌ Didn't Purchase",             "As expected — sample was disliked", "#B71C1C", "#FFEBEE", "#EF9A9A"),
+        ("na_neg", "__NA__", "❔ Purchase Data Not Available", "Update purchase status",            "#4527A0", "#EDE7F6", "#B39DDB"),
+    ]
+
+    for key, filter_val, label, scenario, fg, bg, border in GROUPS:
+        if active_pur and active_pur != filter_val:
+            continue
+
+        if filter_val == "__NA__":
+            group_df = base_df[~base_df[COL_PUR].isin(["No"])].copy()
+        else:
+            group_df = base_df[base_df[COL_PUR] == filter_val].copy()
+
+        group_df = group_df.sort_values("Days Since HO", ascending=False)
+        count = len(group_df)
+
+        st.markdown(f"""
+        <div style="display:flex;align-items:center;gap:10px;margin:1.4rem 0 0.8rem 0;">
+            <span class="ps-section-{key}"
+                  style="border:1.5px solid {border};border-radius:20px;
+                         padding:3px 14px;font-size:0.78rem;font-weight:700;
+                         color:{fg};font-family:Outfit,sans-serif;white-space:nowrap;">
+                {label} ({count})
+            </span>
+            <span style="font-family:Outfit,sans-serif;font-size:0.78rem;
+                         font-weight:700;color:{fg};">— {scenario}</span>
+            <div style="flex:1;height:1px;background:#DDD5C5;"></div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        if group_df.empty:
+            st.markdown(
+                "<div style='font-family:Outfit,sans-serif;font-size:0.85rem;"
+                "color:#6B7A99;padding:0.3rem 0 1rem 0;'>No samples here.</div>",
+                unsafe_allow_html=True
+            )
+        else:
+            for _, row in group_df.iterrows():
+                customer = esc(row.get(COL_CUSTOMER))
+                product  = esc(row.get(COL_SAMPLE_PROD))
+                ho_disp  = row[COL_HO_DATE].strftime("%d %b %Y") \
+                           if pd.notna(row.get(COL_HO_DATE)) else "—"
+                ho_by    = esc(row.get(COL_HO_BY))
+                contact  = esc(row.get(COL_CONTACT))
+                days_ago = int(row["Days Since HO"])
+                latest   = esc(str(row.get("Latest Feedback", "")) or "")
+
+                fb_html = (
+                    f'<div class="action-card-fb">💬 {latest[:140]}'
+                    f'{"..." if len(latest) > 140 else ""}</div>'
+                ) if latest else ""
+
+                st.markdown(f"""
+                <div class="action-card fresh" style="border-left:4px solid {border};">
+                    <div class="action-card-top">
+                        <div>
+                            <div class="action-card-name">{customer}</div>
+                            <div class="action-card-meta">
+                                📦 {product} &nbsp;·&nbsp;
+                                📍 {esc(row.get(COL_AREA))} &nbsp;·&nbsp;
+                                📅 {ho_disp} (<b>{days_ago}d ago</b>) &nbsp;·&nbsp;
+                                🤝 {ho_by} &nbsp;·&nbsp; 👤 {contact}
+                            </div>
+                        </div>
+                    </div>
+                    {fb_html}
+                </div>
+                """, unsafe_allow_html=True)
+
+    # ── Excel download ──
+    st.markdown("<div style='margin-top:1.5rem;'></div>", unsafe_allow_html=True)
+    dl_cols = [COL_BRANCH, COL_AREA, COL_CUSTOMER, COL_SAMPLE_PROD,
+               COL_HO_DATE, COL_HO_BY, COL_CONTACT,
+               "Days Since HO", "Latest Feedback", COL_PUR]
+    dl_cols = [c for c in dl_cols if c in base_df.columns]
+    dl_df   = base_df[dl_cols].copy()
+    if COL_HO_DATE in dl_df.columns:
+        dl_df[COL_HO_DATE] = dl_df[COL_HO_DATE].dt.strftime("%d %b %Y")
+
+    buf = BytesIO()
+    with pd.ExcelWriter(buf, engine="xlsxwriter") as writer:
+        dl_df.to_excel(writer, index=False, sheet_name="Negative Purchase Status")
+        ws_xl = writer.sheets["Negative Purchase Status"]
+        ws_xl.set_column(0, len(dl_df.columns) - 1, 22)
+
+    st.download_button(
+        "📥 Download Negative Feedback Analysis",
+        data=buf.getvalue(),
+        file_name=f"NegativePurchaseAnalysis_{datetime.now().strftime('%d%b%Y')}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        key="ps_download_neg"
+    )
+
+    # ── PDF generation (two-step: Generate → Download) ──
+    col_gen, col_dl = st.columns(2)
+    with col_gen:
+        if st.button("📄Generate PDF", key="ps_gen_pdf_neg", width='content'):
+            grouped_data = _build_grouped_data(base_df)
+            st.session_state["ps_pdf_bytes_neg"] = generate_sample_pdf(grouped_data, filters_desc)
+            st.rerun()
+    with col_dl:
+        if st.session_state.get("ps_pdf_bytes_neg"):
+            st.download_button(
+                "📥 Download PDF",
+                data=st.session_state["ps_pdf_bytes_neg"],
+                file_name=f"NegativePurchaseAnalysis_{datetime.now().strftime('%d%b%Y')}.pdf",
+                mime="application/pdf",
+                key="ps_download_pdf_neg"
+            )
+
 
 def show_action_required(fdf=None):
     st.markdown(SAMPLE_CSS, unsafe_allow_html=True)
@@ -515,18 +794,25 @@ def show_action_required(fdf=None):
     .st-key-ar_btn_hold button    { background:#E1BEE7!important; border:1.5px solid #CE93D8!important; color:#4527A0!important; font-weight:700!important; animation:blink-purple 1.4s ease-in-out infinite!important; }
     .st-key-ar_btn_clear button   { background:#FFFFFF!important; border:1.5px solid #DDD5C5!important; color:#1B2A4A!important; font-weight:600!important; animation:none!important; }
 
-    /* ── Purchase Status buttons ── */
+    /* ── Purchase Status buttons (Positive feedback) ── */
     .st-key-ps_btn_yes button    { background:#C8E6C9!important; border:1.5px solid #66BB6A!important; color:#1B5E20!important; font-weight:700!important; animation:blink-green  1.4s ease-in-out infinite!important; }
     .st-key-ps_btn_notyet button { background:#FFF9C4!important; border:1.5px solid #FDD835!important; color:#F57F17!important; font-weight:700!important; animation:blink-yellow 1.4s ease-in-out infinite!important; }
     .st-key-ps_btn_no button     { background:#FFCDD2!important; border:1.5px solid #EF5350!important; color:#B71C1C!important; font-weight:700!important; animation:blink-red    1.4s ease-in-out infinite!important; }
     .st-key-ps_btn_na button     { background:#E1BEE7!important; border:1.5px solid #CE93D8!important; color:#4527A0!important; font-weight:700!important; animation:blink-purple 1.4s ease-in-out infinite!important; }
     .st-key-ps_btn_clear button  { background:#FFFFFF!important; border:1.5px solid #DDD5C5!important; color:#1B2A4A!important; font-weight:600!important; animation:none!important; }
 
+    /* ── Purchase Status buttons (Negative feedback) ── */
+    .st-key-ps_btn_no_neg button    { background:#FFCDD2!important; border:1.5px solid #EF5350!important; color:#B71C1C!important; font-weight:700!important; animation:blink-red    1.4s ease-in-out infinite!important; }
+    .st-key-ps_btn_na_neg button    { background:#E1BEE7!important; border:1.5px solid #CE93D8!important; color:#4527A0!important; font-weight:700!important; animation:blink-purple 1.4s ease-in-out infinite!important; }
+    .st-key-ps_btn_clear_neg button { background:#FFFFFF!important; border:1.5px solid #DDD5C5!important; color:#1B2A4A!important; font-weight:600!important; animation:none!important; }
+
     /* ── Purchase section header blinking spans ── */
     .ps-section-yes    { animation:blink-green  1.4s ease-in-out infinite; }
     .ps-section-notyet { animation:blink-yellow 1.4s ease-in-out infinite; }
     .ps-section-no     { animation:blink-red    1.4s ease-in-out infinite; }
     .ps-section-na     { animation:blink-purple 1.4s ease-in-out infinite; }
+    .ps-section-no_neg  { animation:blink-red    1.4s ease-in-out infinite; }
+    .ps-section-na_neg  { animation:blink-purple 1.4s ease-in-out infinite; }
     </style>
     """, unsafe_allow_html=True)
 
