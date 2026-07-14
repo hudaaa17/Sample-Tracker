@@ -29,6 +29,92 @@ PIPELINE_PAGES = {
 INTEL_SIDEBAR_PAGES    = {"sample_overview", "sample_action", "sample_all"}
 PIPELINE_SIDEBAR_PAGES = {"pipeline_kpi"}
 
+# ─────────────────────────────────────────
+# SIDEBAR COLOR CODING
+# "Back to Home" = amber (leaving this section)
+# Nav buttons     = outlined navy/gold by default, filled gold when ACTIVE
+# Reset Filters   = muted/neutral (already visually distinct via icon+label)
+# ─────────────────────────────────────────
+ROUTER_NAV_CSS = """
+<style>
+/* "Back to Home" — Color 2 (utility action): translucent indigo, matching
+   Admin Hub / Home / Logout in app.py */
+section[data-testid="stSidebar"] .st-key-snav_home .stButton > button,
+section[data-testid="stSidebar"] .st-key-pnav_home .stButton > button {
+    background: rgba(147, 112, 219, 0.16) !important;
+    border: 1.5px solid rgba(147, 112, 219, 0.55) !important;
+    color: #D8CFFA !important;
+    font-weight: 700 !important;
+}
+section[data-testid="stSidebar"] .st-key-snav_home .stButton > button:hover,
+section[data-testid="stSidebar"] .st-key-pnav_home .stButton > button:hover {
+    background: rgba(147, 112, 219, 0.30) !important;
+    border-color: rgba(147, 112, 219, 0.8) !important;
+    color: #FFFFFF !important;
+}
+
+/* Reset Filters — neutral, translucent, clearly a utility action not a nav item */
+section[data-testid="stSidebar"] .st-key-g_reset .stButton > button,
+section[data-testid="stSidebar"] .st-key-gp_reset .stButton > button {
+    background: rgba(90, 106, 133, 0.14) !important;
+    border: 1px solid rgba(90, 106, 133, 0.5) !important;
+    color: #9AA5BD !important;
+    font-weight: 500 !important;
+}
+section[data-testid="stSidebar"] .st-key-g_reset .stButton > button:hover,
+section[data-testid="stSidebar"] .st-key-gp_reset .stButton > button:hover {
+    background: rgba(90, 106, 133, 0.24) !important;
+    border-color: #C9A84C !important;
+    color: #E8C97A !important;
+}
+
+/* Nav buttons (Overview/Detailed Info/etc, Pipeline Tracker/Notifications/etc)
+   — Color 3: translucent blue. The active one is overridden to a translucent
+   gold overlay below by _highlight_active_nav(). */
+section[data-testid="stSidebar"] .st-key-snav_sample_overview .stButton > button,
+section[data-testid="stSidebar"] .st-key-snav_sample_detailed .stButton > button,
+section[data-testid="stSidebar"] .st-key-snav_sample_action .stButton > button,
+section[data-testid="stSidebar"] .st-key-snav_sample_all .stButton > button,
+section[data-testid="stSidebar"] .st-key-snav_sample_entry .stButton > button,
+section[data-testid="stSidebar"] .st-key-snav_pipeline_tracker .stButton > button,
+section[data-testid="stSidebar"] .st-key-snav_notifications .stButton > button,
+section[data-testid="stSidebar"] .st-key-snav_pipeline_kpi .stButton > button {
+    background: rgba(90, 140, 220, 0.14) !important;
+    border: 1.5px solid rgba(90, 140, 220, 0.45) !important;
+    color: #C9D8F0 !important;
+}
+section[data-testid="stSidebar"] .st-key-snav_sample_overview .stButton > button:hover,
+section[data-testid="stSidebar"] .st-key-snav_sample_detailed .stButton > button:hover,
+section[data-testid="stSidebar"] .st-key-snav_sample_action .stButton > button:hover,
+section[data-testid="stSidebar"] .st-key-snav_sample_all .stButton > button:hover,
+section[data-testid="stSidebar"] .st-key-snav_sample_entry .stButton > button:hover,
+section[data-testid="stSidebar"] .st-key-snav_pipeline_tracker .stButton > button:hover,
+section[data-testid="stSidebar"] .st-key-snav_notifications .stButton > button:hover,
+section[data-testid="stSidebar"] .st-key-snav_pipeline_kpi .stButton > button:hover {
+    background: rgba(90, 140, 220, 0.24) !important;
+    border-color: rgba(90, 140, 220, 0.7) !important;
+    color: #FFFFFF !important;
+}
+</style>
+"""
+
+
+def _highlight_active_nav(active_key: str):
+    """Overlay the current page's sidebar nav button with a translucent gold
+    fill + bold gold border, so it's obviously the active page — while
+    staying translucent like every other button, not a solid block."""
+    st.markdown(f"""
+    <style>
+    section[data-testid="stSidebar"] .st-key-{active_key} .stButton > button {{
+        background: rgba(201, 168, 76, 0.35) !important;
+        color: #FFF6E0 !important;
+        border: 2px solid #E8C96A !important;
+        font-weight: 800 !important;
+        box-shadow: 0 0 0 1px rgba(201, 168, 76, 0.25) inset;
+    }}
+    </style>
+    """, unsafe_allow_html=True)
+
 
 # ─────────────────────────────────────────
 # ENRICH
@@ -229,6 +315,7 @@ def render_pipeline_filters(df: pd.DataFrame):
 # ─────────────────────────────────────────
 def show_sample_module(landing_choice):
     st.markdown(SAMPLE_CSS, unsafe_allow_html=True)
+    st.markdown(ROUTER_NAV_CSS, unsafe_allow_html=True)
     if landing_choice is None:
         landing_choice = st.session_state.get("landing_choice")
 
@@ -254,11 +341,7 @@ def show_sample_module(landing_choice):
                 df = enrich(df, history)
 
         # ── Sidebar nav (always) ──
-        with st.sidebar:
-            if st.button("🏠 Back to Home", key="snav_home", width='stretch'):
-                st.session_state.pop("landing_choice", None)
-                st.session_state.pop("sample_page", None)
-                st.rerun()
+
         with st.sidebar:
             st.markdown("---")
             st.markdown(
@@ -272,6 +355,8 @@ def show_sample_module(landing_choice):
                     st.session_state["sample_page"] = page_key
                     st.rerun()
             st.markdown("---")
+
+        _highlight_active_nav(f"snav_{current}")
 
         # ── Sidebar filters — only for pages that need them ──
         if current in INTEL_SIDEBAR_PAGES and not df.empty:
@@ -304,11 +389,7 @@ def show_sample_module(landing_choice):
         current = st.session_state.get("pipeline_page", "sample_entry")
 
         # ── Sidebar nav (always) ──
-        with st.sidebar:
-            if st.button("🏠  Back to Home", key="pnav_home", width='stretch'):
-                st.session_state.pop("landing_choice", None)
-                st.session_state.pop("pipeline_page", None)
-                st.rerun()
+
         with st.sidebar:
             st.markdown("---")
             st.markdown(
@@ -322,6 +403,8 @@ def show_sample_module(landing_choice):
                     st.session_state["pipeline_page"] = page_key
                     st.rerun()
             st.markdown("---")
+
+        _highlight_active_nav(f"snav_{current}")
 
         # ── Load pipeline data only when needed ──
         pdf = None
