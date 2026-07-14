@@ -377,7 +377,6 @@ def show_overview(fdf=None, sel_prod="All"):
                                     barmode="stack",
                                     category_orders={COL_SAMPLE_PROD: prod_sup_order}
                                 )
-                                fig6.update_layout(yaxis=dict(autorange="reversed"))
                                 st.plotly_chart(
                                     chart_layout(fig6, height=max(350, len(prod_sup_order)*45)),
                                     width='stretch',
@@ -398,8 +397,8 @@ def show_overview(fdf=None, sel_prod="All"):
                                         Pending    =("Feedback Status", lambda x: (x=="Pending").sum()),
                                         Purchased  =(COL_PURCHASED, lambda x: (x=="Yes").sum()),
                                     )
+                                    .reindex(prod_sup_order)  # ← same order as the chart above
                                     .reset_index()
-                                    .sort_values("Total", ascending=False)
                                     .rename(columns={COL_SAMPLE_PROD: "Product"})
                                 )
                                 summary["Conversion %"] = (
@@ -493,7 +492,6 @@ def show_overview(fdf=None, sel_prod="All"):
                                 barmode="stack",
                                 category_orders={COL_SAMPLE_PROD: prod_cust_order}
                             )
-                            fig_c.update_layout(yaxis=dict(autorange="reversed"))
                             st.plotly_chart(
                                 chart_layout(fig_c, height=max(300, len(prod_cust_order)*45)),
                                 width='stretch',
@@ -515,8 +513,8 @@ def show_overview(fdf=None, sel_prod="All"):
                                     Pending   =("Feedback Status", lambda x: (x=="Pending").sum()),
                                     Purchased =(COL_PURCHASED, lambda x: (x=="Yes").sum()),
                                 )
+                                .reindex(prod_cust_order)  # ← same order as the chart above
                                 .reset_index()
-                                .sort_values("Total", ascending=False)
                                 .rename(columns={COL_SAMPLE_PROD: "Product"})
                             )
                             summary["Conversion %"] = (
