@@ -82,14 +82,19 @@ def add_feedback_with_status(customer: str, product: str, ho_date,
     load_feedback_for_sample.clear()
     load_all_latest_feedback.clear()
     # ← sync latest to sheet
-    sync_latest_feedback_to_sheet(customer, product, ho_date, feedback_text.strip())
+    sync_latest_feedback_to_sheet(customer, product, ho_date, feedback_text.strip(),
+                                   purchased=purchased, fb_status=fb_status)
 
 
 def sync_latest_feedback_to_sheet(customer: str, product: str,
-                                   ho_date: str, latest_text: str):
+                                   ho_date: str, latest_text: str,
+                                   purchased: str = None, fb_status: str = None):
     """
-    Update the Feedback column in Sheet1 for the matching row
-    with the latest feedback text.
+    Update the Feedback column (and, if provided, the Purchased? column)
+    in Sheet1 for the matching row with the latest values.
+    fb_status isn't stored in the sheet (no matching column) — it's
+    accepted here only so callers can pass it without erroring; it's
+    a no-op for the sheet write.
     """
     try:
         import gspread
@@ -110,11 +115,14 @@ def sync_latest_feedback_to_sheet(customer: str, product: str,
         # Find column indices
         try:
             cust_col = headers.index("Name of Customer / Party")
-            prod_col = headers.index("Our Sample Product Name")
+            prod_col = headers.index("Product Name")
             date_col = headers.index("Hand over to customer date")
             fb_col   = headers.index("Feedback")
         except ValueError:
             return
+
+        # Purchased? column is optional — older sheets may not have it yet
+        purchased_col = headers.index("Purchased?") if "Purchased?" in headers else None
 
         target_date = str(ho_date)[:10]
 
@@ -135,6 +143,10 @@ def sync_latest_feedback_to_sheet(customer: str, product: str,
                 row_date == target_date):
                 cell = gspread.utils.rowcol_to_a1(i, fb_col + 1)
                 ws.update_acell(cell, latest_text)
+
+                if purchased is not None and purchased_col is not None:
+                    p_cell = gspread.utils.rowcol_to_a1(i, purchased_col + 1)
+                    ws.update_acell(p_cell, purchased)
                 break
 
     except Exception as e:
