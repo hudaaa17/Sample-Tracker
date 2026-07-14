@@ -101,12 +101,34 @@ if st.session_state["role"] == "admin":
             unsafe_allow_html=True
         )
 
+        # ── Utility action buttons (Admin Hub / Home / Logout) — translucent indigo ──
+        st.markdown("""
+        <style>
+        section[data-testid="stSidebar"] .st-key-admin_hub_btn .stButton > button,
+        section[data-testid="stSidebar"] .st-key-home_btn .stButton > button,
+        section[data-testid="stSidebar"] .st-key-logout_btn .stButton > button {
+            background: rgba(147, 112, 219, 0.16) !important;
+            border: 1.5px solid rgba(147, 112, 219, 0.55) !important;
+            color: #D8CFFA !important;
+        }
+        section[data-testid="stSidebar"] .st-key-admin_hub_btn .stButton > button:hover,
+        section[data-testid="stSidebar"] .st-key-home_btn .stButton > button:hover,
+        section[data-testid="stSidebar"] .st-key-logout_btn .stButton > button:hover {
+            background: rgba(147, 112, 219, 0.30) !important;
+            border-color: rgba(147, 112, 219, 0.8) !important;
+            color: #FFFFFF !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
         if st.button("⚙️ Admin Hub", key="admin_hub_btn", width='stretch'):
             st.session_state["page"] = "admin"
             st.rerun()
 
-
-        st.divider()
+        if st.button("🏠 Home", key="home_btn", width='stretch'):
+            st.session_state["page"] = "samples"
+            st.session_state["landing_choice"] = None
+            st.rerun()
 
         if st.button("⏻️ Logout", key="logout_btn", width='stretch'):
                 from google.cloud import firestore as fs
@@ -180,8 +202,7 @@ else:
             </div>
             """,
             unsafe_allow_html=True
-        )
-        st.divider()
+        )        
     
         if st.button("⏻️ Logout", key="logout_btn", width='stretch'):
             from google.cloud import firestore as fs
