@@ -318,8 +318,31 @@ def _show_needs_attention(fdf):
         "📥 Download All Action Items",
         data=buf.getvalue(),
         file_name=f"ActionRequired_{datetime.now().strftime('%d%b%Y')}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        key="ar_download"
     )
+
+    # ── PDF generation (two-step: Generate → Download) ──
+    # Only builds the PDF when the user explicitly clicks Generate, so we
+    # don't pay the PDF-rendering cost on every rerun (urgency filter click,
+    # pagination, etc.) — only when they actually want the file.
+    filters_desc = f"Needs Attention · {active_urg}" if active_urg else "Needs Attention — All"
+
+    col_gen, col_dl = st.columns(2)
+    with col_gen:
+        if st.button("📄 Generate PDF", key="ar_gen_pdf", width='content'):
+            grouped_data = _build_grouped_data(display_df)
+            st.session_state["ar_pdf_bytes"] = generate_sample_pdf(grouped_data, filters_desc)
+            st.rerun()
+    with col_dl:
+        if st.session_state.get("ar_pdf_bytes"):
+            st.download_button(
+                "📥 Download PDF",
+                data=st.session_state["ar_pdf_bytes"],
+                file_name=f"ActionRequired_{datetime.now().strftime('%d%b%Y')}.pdf",
+                mime="application/pdf",
+                key="ar_download_pdf"
+            )
 
 
 def _show_purchase_status(fdf):
@@ -813,6 +836,28 @@ def show_action_required(fdf=None):
     .ps-section-na     { animation:blink-purple 1.4s ease-in-out infinite; }
     .ps-section-no_neg  { animation:blink-red    1.4s ease-in-out infinite; }
     .ps-section-na_neg  { animation:blink-purple 1.4s ease-in-out infinite; }
+
+    /* ── Generate PDF buttons — match the Download button styling ── */
+    .st-key-ps_gen_pdf_pos button,
+    .st-key-ps_gen_pdf_neg button,
+    .st-key-ar_gen_pdf button {
+        background: #1B2A4A !important;
+        color: #E8C97A !important;
+        border: 2px solid #C9A84C !important;
+        border-radius: 8px !important;
+        font-family: 'Libre Baskerville', serif !important;
+        font-size: 15px !important;
+        font-weight: 700 !important;
+        padding: 10px 28px !important;
+        letter-spacing: 0.5px !important;
+        transition: all 0.2s ease !important;
+    }
+    .st-key-ps_gen_pdf_pos button:hover,
+    .st-key-ps_gen_pdf_neg button:hover,
+    .st-key-ar_gen_pdf button:hover {
+        background: #C9A84C !important;
+        color: #1B2A4A !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
