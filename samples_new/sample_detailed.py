@@ -140,6 +140,7 @@ def generate_sample_pdf(grouped_data: dict, filters_desc: str) -> bytes:
             ho_by     = safe(sample["ho_by"])
             contact   = safe(sample["contact"])
             qty       = safe(sample["qty"])
+            units     = safe(sample["units"])
             feedbacks = sample["feedbacks"]
 
             story.append(Paragraph(f"Sample {si}: {product}", S_prod))
@@ -700,6 +701,7 @@ def show_detailed_info(fdf: pd.DataFrame):
                     "ho_by":    str(row.get(COL_HO_BY, "—")),
                     "contact":  str(row.get(COL_CONTACT, "—")),
                     "qty":      str(row.get(COL_QTY, "—")),
+                    "units": str(row.get(COL_UNITS, "—")),
                     "feedbacks": [
                         {
                             "label": "Initial Feedback" if i == 0 else f"Follow-up {i}",
