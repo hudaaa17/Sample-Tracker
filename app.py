@@ -2,7 +2,6 @@ import streamlit as st
 import base64
 
 import re
-from streamlit_cookies_controller import CookieController
 
 from auth.firebase_config import init_firebase, get_db
 from auth.login_page import show_login_page
