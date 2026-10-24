@@ -21,7 +21,7 @@ from reportlab.platypus import (
 
 from samples_new.sample_constants import (
     SAMPLE_CSS, COL_BRANCH, COL_AREA, COL_CUSTOMER,
-    COL_SAMPLE_PROD, COL_HO_DATE, COL_HO_BY,
+    COL_SAMPLE_PROD, COL_HO_DATE, COL_HO_BY, COL_HO_TO,
     COL_CONTACT, COL_QTY, COL_FEEDBACK
 )
 from samples_new.sample_firestore import (
@@ -56,9 +56,10 @@ def update_feedback_entry(customer, product, ho_date, entry_id, new_text, new_da
     print(f"[update_feedback_entry] Firestore write done, now calling sync_latest_feedback_to_sheet...")
     # ← sync latest to sheet
     from samples_new.sample_firestore import sync_latest_feedback_to_sheet
-    sync_latest_feedback_to_sheet(customer, product, ho_date, new_text.strip(),
-                                   purchased=purchased, fb_status=new_status)
+    sync_latest_feedback_to_sheet(customer, product, ho_date)
     load_feedback_for_sample.clear()
+    from samples_new.sample_firestore import load_all_latest_feedback
+    load_all_latest_feedback.clear()
 
 
 # ─────────────────────────────────────────
@@ -138,6 +139,7 @@ def generate_sample_pdf(grouped_data: dict, filters_desc: str) -> bytes:
             product   = safe(sample["product"])
             ho_date   = safe(sample["ho_date"])
             ho_by     = safe(sample["ho_by"])
+            ho_to     = safe(sample.get("ho_to", "—"))
             contact   = safe(sample["contact"])
             qty       = safe(sample["qty"])
             feedbacks = sample["feedbacks"]
@@ -146,6 +148,7 @@ def generate_sample_pdf(grouped_data: dict, filters_desc: str) -> bytes:
             story.append(Paragraph(
                 f"Handed over: <b>{ho_date}</b> &nbsp;·&nbsp; "
                 f"By: <b>{ho_by}</b> &nbsp;·&nbsp; "
+                f"To: <b>{ho_to}</b> &nbsp;·&nbsp; "
                 f"Contact: <b>{contact}</b> &nbsp;·&nbsp; "
                 f"Qty: <b>{qty}</b>",
                 S_meta
@@ -257,6 +260,13 @@ def show_detailed_info(fdf: pd.DataFrame):
         <div class="sd-sub">Full feedback history per company.</div>
         <div class="sd-divider"></div>
     </div>""", unsafe_allow_html=True)
+    sheet_sync_error = st.session_state.pop("feedback_sheet_sync_error", None)
+    if sheet_sync_error:
+        st.warning(
+            "Feedback was saved in Firebase, but the main sheet could not be "
+            f"updated: {sheet_sync_error}"
+        )
+
     if st.session_state.pop("_card_deleted", False):
         st.rerun() 
 
@@ -379,6 +389,7 @@ def show_detailed_info(fdf: pd.DataFrame):
         ho_str   = row["ho_date_str"]
         ho_disp  = ho_date.strftime("%d %b %Y") if pd.notna(ho_date) else "—"
         ho_by    = str(row.get(COL_HO_BY, "—"))
+        ho_to    = str(row.get(COL_HO_TO, "—"))
         contact  = str(row.get(COL_CONTACT, "—"))
         qty      = str(row.get(COL_QTY, "—"))
         days_ago = int((pd.Timestamp.now() - ho_date).days) if pd.notna(ho_date) else 0
@@ -469,6 +480,7 @@ def show_detailed_info(fdf: pd.DataFrame):
                 <div class="sample-card-meta">
                     <span>📅 Handed over: <b>{ho_disp}</b> ({days_ago}d ago)</span>
                     <span>🤝 By: <b>{esc(ho_by)}</b></span>
+                    <span>➡️ To: <b>{esc(ho_to)}</b></span>
                     <span>👤 Contact: <b>{esc(contact)}</b></span>
                     <span>🧪 Qty: <b>{esc(qty)}</b></span>
                     <span> 🏢 Branch: <b>{esc(branch)}</b></span>
@@ -711,6 +723,7 @@ def show_detailed_info(fdf: pd.DataFrame):
                     "product":  product,
                     "ho_date":  ho_disp,
                     "ho_by":    str(row.get(COL_HO_BY, "—")),
+                    "ho_to":    str(row.get(COL_HO_TO, "—")),
                     "contact":  str(row.get(COL_CONTACT, "—")),
                     "qty":      str(row.get(COL_QTY, "—")),
                     "feedbacks": [
