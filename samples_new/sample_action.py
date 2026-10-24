@@ -10,7 +10,8 @@ from datetime import datetime
 from samples_new.sample_constants import (
     load_sample_data, SAMPLE_CSS, urgency_badge, feedback_badge,
     COL_BRANCH, COL_AREA, COL_CUSTOMER, COL_SAMPLE_PROD,
-    COL_HO_DATE, COL_HO_BY, COL_CONTACT, COL_FEEDBACK, COL_PURCHASED
+    COL_HO_DATE, COL_HO_BY, COL_HO_TO, COL_CONTACT, COL_FEEDBACK,
+    COL_PURCHASED
 )
 from samples_new.sample_firestore import (
     load_all_latest_feedback, classify_feedback,
@@ -38,6 +39,7 @@ def _build_grouped_data(df: pd.DataFrame) -> dict:
         customer = str(row.get(COL_CUSTOMER, "—")).strip() or "—"
         ho_date  = row[COL_HO_DATE].strftime("%d %b %Y") if pd.notna(row.get(COL_HO_DATE)) else "—"
         ho_by    = str(row.get(COL_HO_BY, "—")).strip() or "—"
+        ho_to    = str(row.get(COL_HO_TO, "—")).strip() or "—"
         contact  = str(row.get(COL_CONTACT, "—")).strip() or "—"
         qty      = str(row.get("Sample Quantity", "—")).strip() or "—"
         latest   = str(row.get("Latest Feedback", "")).strip()
@@ -55,6 +57,7 @@ def _build_grouped_data(df: pd.DataFrame) -> dict:
             "product":   str(row.get(COL_SAMPLE_PROD, "—")).strip() or "—",
             "ho_date":   ho_date,
             "ho_by":     ho_by,
+            "ho_to":     ho_to,
             "contact":   contact,
             "qty":       qty,
             "feedbacks": feedbacks,
@@ -246,6 +249,7 @@ def _show_needs_attention(fdf):
             ho_disp  = row[COL_HO_DATE].strftime("%d %b %Y") \
                        if pd.notna(row.get(COL_HO_DATE)) else "—"
             ho_by    = esc(row.get(COL_HO_BY))
+            ho_to    = esc(row.get(COL_HO_TO))
             contact  = esc(row.get(COL_CONTACT))
             days_ago = int(row["Days Since HO"])
             latest   = str(row.get("Latest Feedback", "")) or ""
@@ -268,7 +272,7 @@ def _show_needs_attention(fdf):
                             📦 {product} &nbsp;·&nbsp;
                             📍 {esc(row.get(COL_AREA))} &nbsp;·&nbsp;
                             📅 {ho_disp} (<b>{days_ago}d ago</b>) &nbsp;·&nbsp;
-                            🤝 {ho_by} &nbsp;·&nbsp; 👤 {contact}
+                            🤝 By: {ho_by} &nbsp;·&nbsp; ➡️ To: {ho_to} &nbsp;·&nbsp; 👤 {contact}
                         </div>
                     </div>
                     {urgency_badge(urg)}
@@ -301,7 +305,7 @@ def _show_needs_attention(fdf):
     # ── Excel download — always uses FULL pending_df (all filters, all pages) ──
     st.markdown("<div style='margin-top:1rem;'></div>", unsafe_allow_html=True)
     dl_cols = [COL_BRANCH, COL_AREA, COL_CUSTOMER, COL_SAMPLE_PROD,
-               COL_HO_DATE, COL_HO_BY, COL_CONTACT, COL_PURCHASED,
+               COL_HO_DATE, COL_HO_BY, COL_HO_TO, COL_CONTACT, COL_PURCHASED,
                "Days Since HO", "Urgency", "Latest Feedback", "Feedback Status"]
     dl_cols = [c for c in dl_cols if c in pending_df.columns]
     dl_df   = display_df[dl_cols].copy()  # ← full pending_df not display_df
@@ -352,7 +356,12 @@ def _show_purchase_status(fdf):
       - Negative feedback: simplified breakdown — Didn't Purchase / No Data only,
         since a negative response is never followed by a "Yes"/"Not Yet" purchase.
     """
-    responded_df = fdf[fdf["Urgency"] == "Responded"].copy()
+    # Use the feedback classification as the source of truth. Urgency can be
+    # stale or derived differently for older records; it must not hide a
+    # sample that is explicitly classified as Positive or Negative.
+    responded_df = fdf[
+        fdf["Feedback Status"].isin(["Positive", "Negative"])
+    ].copy()
 
     if responded_df.empty:
         st.info("No responded samples yet.")
@@ -536,6 +545,7 @@ def _render_positive_purchase_status(responded_df, COL_PUR):
                 ho_disp  = row[COL_HO_DATE].strftime("%d %b %Y") \
                            if pd.notna(row.get(COL_HO_DATE)) else "—"
                 ho_by    = esc(row.get(COL_HO_BY))
+                ho_to    = esc(row.get(COL_HO_TO))
                 contact  = esc(row.get(COL_CONTACT))
                 days_ago = int(row["Days Since HO"])
                 latest   = esc(str(row.get("Latest Feedback", "")) or "")
@@ -554,7 +564,7 @@ def _render_positive_purchase_status(responded_df, COL_PUR):
                                 📦 {product} &nbsp;·&nbsp;
                                 📍 {esc(row.get(COL_AREA))} &nbsp;·&nbsp;
                                 📅 {ho_disp} (<b>{days_ago}d ago</b>) &nbsp;·&nbsp;
-                                🤝 {ho_by} &nbsp;·&nbsp; 👤 {contact}
+                                🤝 By: {ho_by} &nbsp;·&nbsp; ➡️ To: {ho_to} &nbsp;·&nbsp; 👤 {contact}
                             </div>
                         </div>
                     </div>
@@ -565,7 +575,7 @@ def _render_positive_purchase_status(responded_df, COL_PUR):
     # ── Excel download ──
     st.markdown("<div style='margin-top:1.5rem;'></div>", unsafe_allow_html=True)
     dl_cols = [COL_BRANCH, COL_AREA, COL_CUSTOMER, COL_SAMPLE_PROD,
-               COL_HO_DATE, COL_HO_BY, COL_CONTACT,
+               COL_HO_DATE, COL_HO_BY, COL_HO_TO, COL_CONTACT,
                "Days Since HO", "Latest Feedback", COL_PUR]
     dl_cols = [c for c in dl_cols if c in base_df.columns]
     dl_df   = base_df[dl_cols].copy()
@@ -729,6 +739,7 @@ def _render_negative_purchase_status(responded_df, COL_PUR):
                 ho_disp  = row[COL_HO_DATE].strftime("%d %b %Y") \
                            if pd.notna(row.get(COL_HO_DATE)) else "—"
                 ho_by    = esc(row.get(COL_HO_BY))
+                ho_to    = esc(row.get(COL_HO_TO))
                 contact  = esc(row.get(COL_CONTACT))
                 days_ago = int(row["Days Since HO"])
                 latest   = esc(str(row.get("Latest Feedback", "")) or "")
@@ -747,7 +758,7 @@ def _render_negative_purchase_status(responded_df, COL_PUR):
                                 📦 {product} &nbsp;·&nbsp;
                                 📍 {esc(row.get(COL_AREA))} &nbsp;·&nbsp;
                                 📅 {ho_disp} (<b>{days_ago}d ago</b>) &nbsp;·&nbsp;
-                                🤝 {ho_by} &nbsp;·&nbsp; 👤 {contact}
+                                🤝 By: {ho_by} &nbsp;·&nbsp; ➡️ To: {ho_to} &nbsp;·&nbsp; 👤 {contact}
                             </div>
                         </div>
                     </div>
@@ -758,7 +769,7 @@ def _render_negative_purchase_status(responded_df, COL_PUR):
     # ── Excel download ──
     st.markdown("<div style='margin-top:1.5rem;'></div>", unsafe_allow_html=True)
     dl_cols = [COL_BRANCH, COL_AREA, COL_CUSTOMER, COL_SAMPLE_PROD,
-               COL_HO_DATE, COL_HO_BY, COL_CONTACT,
+               COL_HO_DATE, COL_HO_BY, COL_HO_TO, COL_CONTACT,
                "Days Since HO", "Latest Feedback", COL_PUR]
     dl_cols = [c for c in dl_cols if c in base_df.columns]
     dl_df   = base_df[dl_cols].copy()
@@ -897,15 +908,18 @@ def show_all_samples(fdf=None):
         st.warning("No samples match the current filters.")
         return
 
+    # Work on a copy because this frame is shared with other dashboard tabs.
+    fdf = fdf.copy()
+
     COL_HO_DATE = "Hand over to customer date"
 
-    # === DATE PROCESSING (Do this FIRST) ===
+    # Normalize mixed sheet formats before formatting the visible date. Keep
+    # this as datetime data in show_df so the Excel download retains real dates.
     if COL_HO_DATE in fdf.columns:
-        # Convert to datetime
-        fdf[COL_HO_DATE] = pd.to_datetime(fdf[COL_HO_DATE], errors='coerce', dayfirst=True)
-        
-        # Create display column
-        fdf[COL_HO_DATE + "_display"] = fdf[COL_HO_DATE].dt.strftime("%d %b %Y").fillna("—")
+        fdf[COL_HO_DATE] = pd.to_datetime(
+            fdf[COL_HO_DATE], format="mixed", errors="coerce", dayfirst=True
+        )
+
     # ====================== SEARCH ======================
     search = st.text_input(
         "🔍 Search", placeholder="Search customer, product, area...",
@@ -936,6 +950,7 @@ def show_all_samples(fdf=None):
         "Sample Quantity",
         "Sample Unit",  
         COL_HO_BY,
+        COL_HO_TO,
         "Latest Feedback", 
         "Feedback Status", 
         "Urgency", 
@@ -946,8 +961,18 @@ def show_all_samples(fdf=None):
 
 
     # ====================== DISPLAY ======================
+    table_df = show_df[show_cols].copy()
+    if COL_HO_DATE in table_df.columns:
+        table_df[COL_HO_DATE] = (
+            pd.to_datetime(
+                table_df[COL_HO_DATE], format="mixed", errors="coerce", dayfirst=True
+            )
+            .dt.strftime("%d %b %Y")
+            .fillna("—")
+        )
+
     st.dataframe(
-        show_df[show_cols].reset_index(drop=True),
+        table_df.reset_index(drop=True),
         width='stretch', 
         height=520,
         use_container_width=True,
@@ -959,10 +984,6 @@ def show_all_samples(fdf=None):
     buf = BytesIO()
     with pd.ExcelWriter(buf, engine="xlsxwriter") as writer:
         excel_df = show_df[show_cols].copy()
-        # Optional: Put real datetime in Excel too
-        if COL_HO_DATE in excel_df.columns and COL_HO_DATE in fdf.columns:
-            excel_df[COL_HO_DATE] = fdf[COL_HO_DATE].iloc[:len(excel_df)]  # align lengths
-        
         excel_df.to_excel(writer, index=False, sheet_name="All Samples")
         ws = writer.sheets["All Samples"]
         ws.set_column(0, len(show_cols) - 1, 22)
