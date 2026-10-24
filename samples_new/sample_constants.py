@@ -26,6 +26,7 @@ COL_SAMPLE_PROD = "Product Name"
 COL_SUPPLIER = "Supplier Name"
 COL_QTY         = "Sample Quantity"
 COL_HO_BY       = "Handed over By"
+COL_HO_TO       = "Handed over To"
 COL_FEEDBACK    = "Feedback"
 COL_PURCHASED = "Purchased?"
 
@@ -34,7 +35,8 @@ COL_PURCHASED = "Purchased?"
 ALL_COLS = [
     COL_BRANCH, COL_AREA, COL_ENQ_DATE, COL_HO_DATE,
     COL_CUSTOMER, COL_CONTACT, COL_CUST_PROD,
-    COL_SAMPLE_PROD, COL_QTY, COL_HO_BY, COL_FEEDBACK, COL_SUPPLIER, COL_PURCHASED
+    COL_SAMPLE_PROD, COL_QTY, COL_HO_BY, COL_HO_TO, COL_FEEDBACK,
+    COL_SUPPLIER, COL_PURCHASED
 ]
 
 CHART_COLORS = ["#1B2A4A","#C9A84C","#5A6A85","#E8C96A",
@@ -58,9 +60,15 @@ def load_sample_data() -> pd.DataFrame:
         df.columns = df.columns.str.strip()
         for col in [COL_ENQ_DATE, COL_HO_DATE]:
             if col in df.columns:
-                df[col] = pd.to_datetime(df[col], dayfirst=True, errors="coerce")
+                # Sheet rows can contain dates written in different formats
+                # (for example, older slash-separated dates and Firebase rows
+                # with hyphens). Infer each value independently so valid dates
+                # are not turned into NaT by a column-wide format guess.
+                df[col] = pd.to_datetime(
+                    df[col], format="mixed", dayfirst=True, errors="coerce"
+                )
         for col in [COL_BRANCH, COL_AREA, COL_CUSTOMER,
-                    COL_SAMPLE_PROD, COL_HO_BY, COL_FEEDBACK]:
+                    COL_SAMPLE_PROD, COL_HO_BY, COL_HO_TO, COL_FEEDBACK]:
             if col in df.columns:
                 df[col] = df[col].astype(str).str.strip().str.title()
                 df[col] = df[col].replace(["nan","None",""], pd.NA)
